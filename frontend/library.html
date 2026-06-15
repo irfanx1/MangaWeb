@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Library — PornhwaFlix</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nav-btn" id="nav-back" title="Back"></button>
+  <span class="nav-logo" style="text-align:center;flex:1;font-size:15px">Library</span>
+  <a href="/search" class="nav-btn" id="nav-search" title="Search"></a>
+</nav>
+
+<div class="page">
+
+  <div class="lib-toolbar">
+    <span class="lib-count" id="lib-count"><strong>0</strong> saved</span>
+    <div class="lib-actions">
+      <button class="lib-view-btn active" id="btn-grid" title="Grid view"></button>
+      <button class="lib-view-btn" id="btn-list" title="List view"></button>
+    </div>
+  </div>
+
+  <div class="cards-grid" id="lib-grid" style="padding-top:16px;padding-bottom:100px"></div>
+
+  <div id="lib-list" class="hidden" style="padding-bottom:100px"></div>
+
+  <div class="empty-state hidden" id="empty-state">
+    <div class="empty-state-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+    </div>
+    <h3>No saved manga</h3>
+    <p>Tap the heart on any title to add it here.</p>
+    <a href="/search">Browse manga &rarr;</a>
+  </div>
+
+</div>
+
+<script src="/static/app.js"></script>
+<script>
+document.getElementById('nav-back').innerHTML = ICONS.back;
+document.getElementById('nav-search').innerHTML = ICONS.search;
+document.getElementById('btn-grid').innerHTML = ICONS.grid;
+document.getElementById('btn-list').innerHTML = ICONS.list;
+
+if (TG) {
+  TG.BackButton.show();
+  TG.BackButton.onClick(() => history.back());
+}
+
+document.getElementById('nav-back').addEventListener('click', () => history.back());
+
+let viewMode = localStorage.getItem('pfx_lib_view') || 'grid';
+let lib = Store.getLibrary();
+
+const btnGrid = document.getElementById('btn-grid');
+const btnList = document.getElementById('btn-list');
+const libGrid = document.getElementById('lib-grid');
+const libList = document.getElementById('lib-list');
+
+function setView(mode) {
+  viewMode = mode;
+  localStorage.setItem('pfx_lib_view', mode);
+
+  if (mode === 'grid') {
+    libGrid.classList.remove('hidden');
+    libList.classList.add('hidden');
+    btnGrid.classList.add('active');
+    btnList.classList.remove('active');
+  } else {
+    libGrid.classList.add('hidden');
+    libList.classList.remove('hidden');
+    btnGrid.classList.remove('active');
+    btnList.classList.add('active');
+  }
+}
+
+btnGrid.addEventListener('click', () => setView('grid'));
+btnList.addEventListener('click', () => setView('list'));
+
+function removeItem(url) {
+  Store.removeFromLibrary(url);
+  lib = Store.getLibrary();
+  renderAll();
+  showToast('Removed from library');
+}
+
+function renderGrid() {
+  libGrid.innerHTML = '';
+
+  lib.forEach((m, i) => {
+    const card = renderCard(m);
+    card.style.animationDelay = `${i * 35}ms`;
+    libGrid.appendChild(card);
+  });
+
+  setTimeout(() => staggerCards(libGrid), 10);
+}
+
+function renderList() {
+  libList.innerHTML = '';
+
+  lib.forEach(m => {
+    const item = document.createElement('div');
+    item.className = 'lib-list-item';
+
+    // Always proxy — handles hotlink protection for all sources
+    // and fixes cards saved before source field was added.
+    const coverSrc = m.cover
+      ? `/api/image?url=${encodeURIComponent(m.cover)}`
+      : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300"><rect width="200" height="300" fill="%23111"/></svg>';
+
+    item.innerHTML = `
+      <div class="lib-list-thumb">
+        <img
+          src="${coverSrc}"
+          alt="${escHtml(m.title)}"
+          loading="lazy"
+          decoding="async"
+          referrerpolicy="no-referrer"
+          crossorigin="anonymous"
+          onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 300%22><rect width=%22200%22 height=%22300%22 fill=%22%23111%22/></svg>'"
+        >
+      </div>
+
+      <div class="lib-list-info">
+        <div class="lib-list-title">${escHtml(m.title)}</div>
+        <div class="lib-list-meta">
+          ${m.latest_chapter ? escHtml(m.latest_chapter) : 'Saved'}
+        </div>
+      </div>
+
+      <button
+        class="lib-list-remove"
+        data-url="${escHtml(m.url)}"
+        title="Remove"
+      >
+        ${ICONS.trash}
+      </button>
+    `;
+
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.lib-list-remove')) return;
+
+      Nav.go('/manga', {
+        url: m.url,
+        title: m.title,
+        cover: m.cover,
+        source: m.source || ''
+      });
+    });
+
+    item.querySelector('.lib-list-remove').addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeItem(m.url);
+    });
+
+    libList.appendChild(item);
+  });
+}
+
+function renderAll() {
+  lib = Store.getLibrary();
+
+  const count = lib.length;
+
+  document.getElementById('lib-count').innerHTML =
+    `<strong>${count}</strong> saved`;
+
+  const empty = document.getElementById('empty-state');
+
+  if (!count) {
+    empty.classList.remove('hidden');
+    libGrid.innerHTML = '';
+    libList.innerHTML = '';
+    return;
+  }
+
+  empty.classList.add('hidden');
+
+  renderGrid();
+  renderList();
+  setView(viewMode);
+}
+
+renderAll();
+</script>
+
+</body>
+</html>

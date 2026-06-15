@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Manhwaflix — Read Free Manhwa Online</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* ── INDEX PAGE EXTRAS ──────────────────────── */
+.home { padding-bottom: 72px; padding-top: var(--nav-h); }
+
+/* ─── CONTINUE READING ──────────────────────── */
+.cr-wrap { padding: 14px 16px 0; animation: crSlideIn .42s cubic-bezier(.34,1.56,.64,1) both; }
+@keyframes crSlideIn {
+  from { opacity:0; transform:translateY(-12px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.cr-card {
+  display: flex; align-items: stretch; gap: 0;
+  border-radius: 16px; overflow: hidden;
+  background: rgba(255,212,0,0.04);
+  border: 1px solid rgba(255,212,0,0.2);
+  cursor: pointer; position: relative; min-height: 92px;
+  transition: border-color .2s, transform .16s;
+}
+.cr-card:hover  { border-color: rgba(255,212,0,.42); transform: translateY(-1px); }
+.cr-card:active { transform: scale(.98); opacity: .88; }
+
+.cr-bg {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
+}
+.cr-bg img {
+  width: 100%; height: 100%; object-fit: cover;
+  filter: blur(28px) brightness(.12) saturate(1.6);
+  transform: scale(1.15);
+}
+.cr-thumb {
+  position: relative; z-index: 1;
+  flex-shrink: 0; width: 64px; align-self: stretch; overflow: hidden;
+}
+.cr-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.cr-thumb-placeholder {
+  width: 100%; height: 100%; background: var(--surface3);
+  display: flex; align-items: center; justify-content: center;
+}
+.cr-body {
+  position: relative; z-index: 1;
+  flex: 1; min-width: 0; padding: 13px 14px;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.cr-label {
+  font-size: 8.5px; font-weight: 800; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--primary); margin-bottom: 5px;
+  display: flex; align-items: center; gap: 5px;
+}
+.cr-label::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--primary);
+  animation: crPulse 1.8s ease infinite;
+}
+@keyframes crPulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:.4; transform:scale(.7); }
+}
+.cr-title {
+  font-family: var(--font-display); font-size: 14px; font-weight: 700; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px;
+}
+.cr-ch {
+  font-size: 11px; color: rgba(255,255,255,.48);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 8px;
+}
+.cr-bar { height: 3px; background: rgba(255,255,255,.08); border-radius: 2px; overflow: hidden; }
+.cr-fill { height: 100%; background: var(--primary); border-radius: 2px; transition: width .5s ease; }
+
+.cr-play {
+  position: relative; z-index: 1;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--primary); border: none; flex-shrink: 0;
+  margin: auto 14px auto 0;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 18px rgba(255,212,0,.38);
+  transition: transform .16s, box-shadow .16s;
+}
+.cr-play:hover { transform: scale(1.1); box-shadow: 0 6px 24px rgba(255,212,0,.55); }
+.cr-play svg { width: 15px; height: 15px; fill: #000; margin-left: 2px; }
+
+/* ─── SECTION HEADER ────────────────────────── */
+.hsec { margin: 24px 0 0; }
+.hsec-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; margin-bottom: 14px;
+}
+.hsec-title {
+  font-family: var(--font-display); font-size: 12px; font-weight: 800;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+}
+.hsec-title::before {
+  content: ''; display: inline-block; width: 3px; height: 15px;
+  background: var(--primary); border-radius: 2px;
+}
+.hsec-more {
+  font-size: 11px; font-weight: 600; color: var(--primary);
+  opacity: .8; transition: opacity .15s;
+}
+.hsec-more:hover { opacity: 1; }
+
+/* ─── HERO SLIDER ──────────────────────────── */
+.hero-wrap {
+  position: relative; margin: 14px 0 0; overflow: hidden;
+  height: clamp(240px, 44vw, 370px);
+}
+@media (min-width: 600px) { .hero-wrap { height: clamp(300px, 38vw, 450px); } }
+
+.hero-track { position: relative; width: 100%; height: 100%; }
+.hero-slide {
+  position: absolute; inset: 0; opacity: 0; z-index: 1;
+  pointer-events: none; transition: opacity .6s ease;
+}
+.hero-slide.is-active { opacity: 1; z-index: 2; pointer-events: all; }
+
+.hslide-bg { position: absolute; inset: 0; overflow: hidden; }
+.hslide-bg img {
+  width: 100%; height: 100%; object-fit: cover;
+  filter: blur(22px) brightness(.2) saturate(2);
+  transform: scale(1.1);
+}
+.hero-slide.is-active .hslide-bg img {
+  animation: kBurns 7s ease-out forwards;
+}
+@keyframes kBurns {
+  from { transform: scale(1.1); }
+  to   { transform: scale(1.19); }
+}
+.hslide-vgn {
+  position: absolute; inset: 0; z-index: 1;
+  background:
+    linear-gradient(to right,  rgba(6,6,6,.78) 0%, transparent 50%),
+    linear-gradient(to top,    rgba(6,6,6,.92) 0%, transparent 55%),
+    linear-gradient(to bottom, rgba(6,6,6,.4)  0%, transparent 28%);
+}
+.hslide-body {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: flex-end;
+  padding: 0 18px 50px; gap: 16px;
+}
+.hslide-cover {
+  flex-shrink: 0;
+  width: clamp(88px, 22vw, 130px); height: clamp(128px, 32vw, 192px);
+  border-radius: 11px; overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0,0,0,.75);
+  border: 1px solid rgba(255,255,255,.1);
+  opacity: 0;
+}
+.hero-slide.is-active .hslide-cover { animation: coverIn .5s .05s cubic-bezier(.34,1.3,.64,1) both; }
+@keyframes coverIn {
+  from { opacity:0; transform:translateY(20px); }
+  to   { opacity:1; transform:translateY(-6px); }
+}
+.hslide-cover img { width: 100%; height: 100%; object-fit: cover; }
+
+.hslide-info { flex: 1; min-width: 0; opacity: 0; }
+.hero-slide.is-active .hslide-info { animation: infoIn .48s .18s ease both; }
+@keyframes infoIn {
+  from { opacity:0; transform:translateX(10px); }
+  to   { opacity:1; transform:translateX(0); }
+}
+.hslide-src {
+  display: inline-block; font-size: 8px; font-weight: 800;
+  padding: 2px 7px; border-radius: 4px; letter-spacing: .1em;
+  text-transform: uppercase; margin-bottom: 8px;
+}
+.hslide-src--fx { background: rgba(255,212,0,.92); color: #000; }
+.hslide-src--as { background: rgba(99,102,241,.92); color: #fff; }
+.hslide-title {
+  font-family: var(--font-display);
+  font-size: clamp(15px, 4vw, 22px); font-weight: 800; color: #fff;
+  line-height: 1.22; margin-bottom: 8px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  text-shadow: 0 1px 8px rgba(0,0,0,.55);
+}
+.hslide-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.hslide-ch {
+  font-size: 10.5px; color: var(--primary); font-weight: 600;
+  background: rgba(255,212,0,.1); border: 1px solid rgba(255,212,0,.25);
+  padding: 3px 9px; border-radius: 5px;
+}
+.hslide-read {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 20px; background: var(--primary); color: #000;
+  font-size: 12px; font-weight: 800; font-family: var(--font-display);
+  border-radius: 9px; cursor: pointer; letter-spacing: .02em; border: none;
+  box-shadow: 0 4px 18px rgba(255,212,0,.3);
+  transition: transform .14s, box-shadow .14s;
+}
+.hslide-read:hover  { transform: scale(1.04); box-shadow: 0 6px 24px rgba(255,212,0,.48); }
+.hslide-read:active { transform: scale(.96); }
+.hslide-read svg { width: 11px; height: 11px; }
+
+.hero-footer {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding-bottom: 7px;
+}
+.hero-dots { display: flex; gap: 5px; align-items: center; }
+.hdot {
+  height: 5px; border-radius: 3px; background: rgba(255,255,255,.28);
+  transition: all .38s cubic-bezier(.34,1.56,.64,1); cursor: pointer;
+}
+.hdot.active { width: 22px; background: var(--primary); }
+.hdot:not(.active) { width: 5px; }
+.hero-pgbar { width: calc(100% - 28px); height: 2px; background: rgba(255,255,255,.07); border-radius: 1px; overflow: hidden; }
+.hero-pgbar-fill { height: 100%; width: 0%; background: var(--primary); border-radius: 1px; transition: width .07s linear; }
+
+/* Hero skeleton */
+.hero-skel {
+  position: absolute; inset: 0; background: var(--surface);
+  display: flex; align-items: flex-end; padding: 0 18px 50px; gap: 16px;
+  animation: shimmer 1.55s ease infinite;
+  background: linear-gradient(90deg,var(--surface) 0%,var(--surface3) 40%,var(--surface2) 60%,var(--surface) 100%);
+  background-size: 300% 100%;
+}
+.hero-skel-cover {
+  flex-shrink: 0; width: clamp(88px,22vw,130px); height: clamp(128px,32vw,192px);
+  border-radius: 11px; background: rgba(255,255,255,.06); transform: translateY(-6px);
+}
+.hero-skel-info { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.hero-skel-line { border-radius: 4px; background: rgba(255,255,255,.06); }
+
+/* ─── LATEST GRID ───────────────────────────── */
+.lu-grid {
+  display: grid; gap: 11px; padding: 0 16px;
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (min-width: 480px)  { .lu-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 768px)  { .lu-grid { grid-template-columns: repeat(6, 1fr); gap: 14px; } }
+@media (min-width: 1100px) { .lu-grid { grid-template-columns: repeat(7, 1fr); } }
+
+.lu-card {
+  cursor: pointer; border-radius: 10px; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border);
+  opacity: 0; transform: translateY(14px);
+  transition: opacity .32s ease, transform .32s ease, border-color .18s;
+}
+.lu-card.visible { opacity: 1; transform: translateY(0); }
+.lu-card:hover   { border-color: rgba(255,212,0,.3); }
+.lu-card:active  { transform: scale(.96) !important; opacity: .85; }
+.lu-card-cover { aspect-ratio: 2/3; overflow: hidden; position: relative; }
+.lu-card-cover img {
+  width: 100%; height: 100%; object-fit: cover; transition: transform .3s ease;
+}
+.lu-card:hover .lu-card-cover img { transform: scale(1.05); }
+.lu-card-src {
+  position: absolute; top: 5px; right: 5px; font-size: 7.5px; font-weight: 800;
+  padding: 2px 5px; border-radius: 3px; letter-spacing: .08em; text-transform: uppercase;
+}
+.lu-card-src--fx { background: rgba(255,212,0,.9); color: #000; }
+.lu-card-src--as { background: rgba(99,102,241,.9); color: #fff; }
+.lu-card-title {
+  padding: 6px 8px 9px; font-size: 10.5px; font-weight: 500; color: var(--text);
+  line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+@media (min-width: 768px) { .lu-card-title { font-size: 12px; } }
+
+/* ─── POPULAR STRIP ─────────────────────────── */
+.pop-strip {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 12px; padding: 2px 16px 10px;
+}
+@media (max-width: 480px) {
+  .pop-strip {
+    display: flex; gap: 11px; overflow-x: auto;
+    scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; padding-bottom: 12px;
+  }
+  .pop-strip::-webkit-scrollbar { display: none; }
+  .pop-card { flex-shrink: 0; width: 118px; scroll-snap-align: start; }
+}
+.pop-card {
+  cursor: pointer; opacity: 0; transform: translateX(10px);
+  transition: opacity .32s ease, transform .32s ease;
+}
+.pop-card.visible { opacity: 1; transform: translateX(0); }
+.pop-card:active .pop-cover-wrap { transform: scale(.96); }
+.pop-cover-wrap {
+  width: 100%; aspect-ratio: 2/3; max-height: 200px;
+  border-radius: 11px; overflow: hidden; position: relative;
+  background: var(--surface); border: 1px solid var(--border);
+  transition: transform .15s ease, border-color .18s;
+  box-shadow: 0 4px 16px rgba(0,0,0,.3);
+}
+.pop-card:hover .pop-cover-wrap { border-color: rgba(255,212,0,.3); transform: translateY(-3px); }
+.pop-cover-wrap img { width: 100%; height: 100%; object-fit: cover; }
+.pop-src {
+  position: absolute; top: 6px; right: 6px; font-size: 7.5px; font-weight: 800;
+  padding: 2px 5px; border-radius: 3px; letter-spacing: .08em; text-transform: uppercase;
+}
+.pop-src--fx { background: rgba(255,212,0,.9); color: #000; }
+.pop-src--as { background: rgba(99,102,241,.9); color: #fff; }
+.pop-title {
+  margin-top: 7px; font-size: 11.5px; font-weight: 500; color: var(--text);
+  line-height: 1.35; text-align: center;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pop-skel { min-width: 100px; }
+.pop-skel-cover {
+  width: 100%; aspect-ratio: 2/3; border-radius: 11px;
+  background: linear-gradient(90deg,var(--surface) 0%,var(--surface3) 40%,var(--surface2) 60%,var(--surface) 100%);
+  background-size: 300% 100%; animation: shimmer 1.55s ease infinite;
+}
+.pop-skel-line {
+  height: 10px; border-radius: 4px; margin-top: 8px;
+  background: linear-gradient(90deg,var(--surface) 0%,var(--surface3) 40%,var(--surface2) 60%,var(--surface) 100%);
+  background-size: 300% 100%; animation: shimmer 1.55s ease infinite;
+}
+
+/* ─── DESKTOP CAP ───────────────────────────── */
+@media (min-width: 1024px) {
+  .home { max-width: 1200px; margin: 0 auto; }
+  .hero-wrap { border-radius: 16px; margin: 14px 16px 0; }
+}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <span class="nav-logo">MANHWA<span>FLIX</span></span>
+  <a href="/search"  class="nav-btn" id="nav-search" title="Search"></a>
+  <a href="/library" class="nav-btn" id="nav-lib"    title="Library"></a>
+</nav>
+
+<div class="home" id="home">
+
+  <div id="cr-slot"></div>
+
+  <section class="hsec" style="margin-top:12px">
+    <div class="hsec-hd">
+      <span class="hsec-title">Trending Today</span>
+      <a href="/search" class="hsec-more">See all →</a>
+    </div>
+    <div class="hero-wrap" id="hero-wrap">
+      <div class="hero-track" id="hero-track">
+        <div class="hero-skel" id="hero-skel">
+          <div class="hero-skel-cover"></div>
+          <div class="hero-skel-info">
+            <div class="hero-skel-line" style="width:38%;height:9px"></div>
+            <div class="hero-skel-line" style="width:88%;height:18px"></div>
+            <div class="hero-skel-line" style="width:72%;height:18px"></div>
+            <div class="hero-skel-line" style="width:44%;height:11px"></div>
+            <div class="hero-skel-line" style="width:108px;height:34px;border-radius:9px;margin-top:6px"></div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-footer" id="hero-footer" style="display:none">
+        <div class="hero-dots" id="hero-dots"></div>
+        <div class="hero-pgbar"><div class="hero-pgbar-fill" id="hero-pgfill"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="hsec" id="latest-sec">
+    <div class="hsec-hd"><span class="hsec-title">Latest Updates</span></div>
+    <div class="lu-grid" id="lu-grid">
+      <div class="lu-card visible" style="pointer-events:none;opacity:.3"><div class="lu-card-cover" style="background:var(--surface3)"></div><div class="lu-card-title"> </div></div>
+      <div class="lu-card visible" style="pointer-events:none;opacity:.3"><div class="lu-card-cover" style="background:var(--surface3)"></div><div class="lu-card-title"> </div></div>
+      <div class="lu-card visible" style="pointer-events:none;opacity:.3"><div class="lu-card-cover" style="background:var(--surface3)"></div><div class="lu-card-title"> </div></div>
+      <div class="lu-card visible" style="pointer-events:none;opacity:.3"><div class="lu-card-cover" style="background:var(--surface3)"></div><div class="lu-card-title"> </div></div>
+      <div class="lu-card visible" style="pointer-events:none;opacity:.3"><div class="lu-card-cover" style="background:var(--surface3)"></div><div class="lu-card-title"> </div></div>
+      <div class="lu-card visible" style="pointer-events:none;opacity:.3"><div class="lu-card-cover" style="background:var(--surface3)"></div><div class="lu-card-title"> </div></div>
+    </div>
+  </section>
+
+  <section class="hsec" id="popular-sec">
+    <div class="hsec-hd"><span class="hsec-title">Popular Manga</span></div>
+    <div class="pop-strip" id="pop-strip">
+      <div class="pop-skel"><div class="pop-skel-cover"></div><div class="pop-skel-line" style="width:90%"></div></div>
+      <div class="pop-skel"><div class="pop-skel-cover"></div><div class="pop-skel-line" style="width:75%"></div></div>
+      <div class="pop-skel"><div class="pop-skel-cover"></div><div class="pop-skel-line" style="width:85%"></div></div>
+      <div class="pop-skel"><div class="pop-skel-cover"></div><div class="pop-skel-line" style="width:65%"></div></div>
+      <div class="pop-skel"><div class="pop-skel-cover"></div><div class="pop-skel-line" style="width:80%"></div></div>
+    </div>
+  </section>
+
+</div>
+
+<script src="/static/app.js"></script>
+<script>
+document.getElementById('nav-search').innerHTML = ICONS.search;
+document.getElementById('nav-lib').innerHTML    = ICONS.lib;
+
+const PLACEHOLDER = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 3"><rect width="2" height="3" fill="%23101010"/></svg>';
+const ERR_IMG     = `this.onerror=null;this.src='${PLACEHOLDER}'`;
+function imgSrc(url) { return url ? `/api/image?url=${encodeURIComponent(url)}` : PLACEHOLDER; }
+
+// ═══════════════════════════════════════════════
+// CONTINUE READING — fixed version
+// reads source from stored data, navigates correctly
+// ═══════════════════════════════════════════════
+function renderContinueReading() {
+  const p = Store.getProgress();
+  // Validate required fields before rendering
+  if (!p || !p.mangaUrl || !p.chapterUrl) return;
+
+  const slot  = document.getElementById('cr-slot');
+  const cover = p.cover ? imgSrc(p.cover) : '';
+  const pct   = Math.max(0, Math.min(100, p.percent || 0));
+  const chMeta = [p.chapterTitle, p.page > 1 ? `Page ${p.page}` : null]
+    .filter(Boolean).join(' · ');
+
+  slot.innerHTML = `
+    <div class="cr-wrap">
+      <div class="cr-card" id="cr-card">
+        <div class="cr-bg">${cover ? `<img src="${cover}" alt="" referrerpolicy="no-referrer" onerror="${ERR_IMG}">` : ''}</div>
+        <div class="cr-thumb">
+          ${cover
+            ? `<img src="${cover}" alt="${escHtml(p.mangaTitle||'')}" referrerpolicy="no-referrer" onerror="${ERR_IMG}">`
+            : `<div class="cr-thumb-placeholder"></div>`}
+        </div>
+        <div class="cr-body">
+          <div class="cr-label">Continue Reading</div>
+          <div class="cr-title">${escHtml(p.mangaTitle || 'Unknown Title')}</div>
+          <div class="cr-ch">${escHtml(chMeta || '')}</div>
+          <div class="cr-bar"><div class="cr-fill" style="width:${pct}%"></div></div>
+        </div>
+        <button class="cr-play" aria-label="Resume">
+          <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('cr-card').addEventListener('click', () => {
+    Nav.go('/reader', {
+      url:    p.chapterUrl,
+      manga:  p.mangaUrl,
+      title:  p.mangaTitle  || '',
+      cover:  p.cover       || '',
+      source: p.source      || '',
+    });
+  });
+}
+renderContinueReading();
+
+// ═══════════════════════════════════════════════
+// HERO SLIDER
+// ═══════════════════════════════════════════════
+let heroItems = [], heroIdx = 0, heroTimer = null, heroPgTimer = null, heroProgress = 0;
+const HERO_MS = 7200;
+
+function goManga(m) {
+  Nav.go('/manga', { url: m.url, title: m.title, cover: m.cover||'', source: m.source||'' });
+}
+
+function buildHeroSlide(m) {
+  const isFx    = m.source !== 'asurascans';
+  const srcCls  = isFx ? 'hslide-src--fx' : 'hslide-src--as';
+  const srcLbl  = isFx ? 'Manga18FX' : 'AsuraScans';
+  const ch      = m.chapters?.[0]?.title || '';
+  const slide   = document.createElement('div');
+  slide.className = 'hero-slide';
+  slide.innerHTML = `
+    <div class="hslide-bg"><img src="${imgSrc(m.cover)}" alt="" referrerpolicy="no-referrer" onerror="${ERR_IMG}"></div>
+    <div class="hslide-vgn"></div>
+    <div class="hslide-body">
+      <div class="hslide-cover">
+        <img src="${imgSrc(m.cover)}" alt="${escHtml(m.title)}" referrerpolicy="no-referrer" onerror="${ERR_IMG}">
+      </div>
+      <div class="hslide-info">
+        <span class="hslide-src ${srcCls}">${srcLbl}</span>
+        <div class="hslide-title">${escHtml(m.title)}</div>
+        <div class="hslide-meta">${ch ? `<span class="hslide-ch">${escHtml(ch)}</span>` : ''}</div>
+        <button class="hslide-read">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Read Now
+        </button>
+      </div>
+    </div>
+  `;
+  slide.querySelector('.hslide-read').addEventListener('click', e => { e.stopPropagation(); goManga(m); });
+  slide.addEventListener('click', () => goManga(m));
+  return slide;
+}
+
+function goToSlide(idx, restart) {
+  document.querySelectorAll('.hero-slide').forEach((s,i) => {
+    s.classList.toggle('is-active', i === idx);
+  });
+  document.querySelectorAll('.hdot').forEach((d,i) => d.classList.toggle('active', i === idx));
+  heroIdx = idx;
+  if (restart) resetHeroProgress();
+}
+
+function resetHeroProgress() {
+  clearInterval(heroPgTimer); heroProgress = 0;
+  const fill = document.getElementById('hero-pgfill');
+  if (fill) fill.style.width = '0%';
+  heroPgTimer = setInterval(() => {
+    heroProgress = Math.min(100, heroProgress + 100 / (HERO_MS / 60));
+    if (fill) fill.style.width = heroProgress + '%';
+  }, 60);
+}
+
+function startHeroAuto() {
+  clearInterval(heroTimer);
+  heroTimer = setInterval(() => {
+    goToSlide((heroIdx + 1) % heroItems.length, true);
+    clearInterval(heroTimer); startHeroAuto();
+  }, HERO_MS);
+}
+
+function initHero(items) {
+  heroItems = items.slice(0, 10);
+  const skel   = document.getElementById('hero-skel');
+  const track  = document.getElementById('hero-track');
+  const footer = document.getElementById('hero-footer');
+  const dotsEl = document.getElementById('hero-dots');
+  if (skel) skel.remove();
+  footer.style.display = '';
+  heroItems.forEach(m => track.appendChild(buildHeroSlide(m)));
+  heroItems.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'hdot' + (i === 0 ? ' active' : '');
+    d.addEventListener('click', () => { goToSlide(i, true); clearInterval(heroTimer); startHeroAuto(); });
+    dotsEl.appendChild(d);
+  });
+  goToSlide(0, false); resetHeroProgress(); startHeroAuto();
+  let tx = 0;
+  track.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive:true });
+  track.addEventListener('touchend', e => {
+    const dx = tx - e.changedTouches[0].clientX;
+    if (Math.abs(dx) < 50) return;
+    const next = dx > 0 ? (heroIdx + 1) % heroItems.length : (heroIdx - 1 + heroItems.length) % heroItems.length;
+    goToSlide(next, true); clearInterval(heroTimer); startHeroAuto();
+  }, { passive:true });
+}
+
+// ═══════════════════════════════════════════════
+// LATEST GRID
+// ═══════════════════════════════════════════════
+function renderLatestGrid(items) {
+  const grid = document.getElementById('lu-grid');
+  grid.innerHTML = '';
+  if (!items.length) {
+    renderError(grid, 'Could not load latest updates.', loadAll);
+    return;
+  }
+  items.slice(0, 18).forEach((m, i) => {
+    const isFx = m.source !== 'asurascans';
+    const card = document.createElement('div');
+    card.className = 'lu-card';
+    card.innerHTML = `
+      <div class="lu-card-cover">
+        <img src="${imgSrc(m.cover)}" alt="${escHtml(m.title)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="${ERR_IMG}">
+        <span class="lu-card-src ${isFx ? 'lu-card-src--fx' : 'lu-card-src--as'}">${isFx ? '18FX' : 'AS'}</span>
+      </div>
+      <div class="lu-card-title">${escHtml(m.title)}</div>
+    `;
+    card.addEventListener('click', () => goManga(m));
+    grid.appendChild(card);
+    setTimeout(() => card.classList.add('visible'), i * 38);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// POPULAR STRIP
+// ═══════════════════════════════════════════════
+function renderPopular(items) {
+  const strip = document.getElementById('pop-strip');
+  strip.innerHTML = '';
+  if (!items.length) { strip.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px">Nothing to show.</div>'; return; }
+  items.slice(0, 20).forEach((m, i) => {
+    const isFx = m.source !== 'asurascans';
+    const card = document.createElement('div');
+    card.className = 'pop-card';
+    card.innerHTML = `
+      <div class="pop-cover-wrap">
+        <img src="${imgSrc(m.cover)}" alt="${escHtml(m.title)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="${ERR_IMG}">
+        <span class="pop-src ${isFx ? 'pop-src--fx' : 'pop-src--as'}">${isFx ? '18FX' : 'AS'}</span>
+      </div>
+      <div class="pop-title">${escHtml(m.title)}</div>
+    `;
+    card.addEventListener('click', () => goManga(m));
+    strip.appendChild(card);
+    setTimeout(() => card.classList.add('visible'), i * 44);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// LOAD ALL
+// ═══════════════════════════════════════════════
+async function loadAll() {
+  const [latestRes, popularRes] = await Promise.allSettled([
+    fetch('/api/latest').then(r => r.ok ? r.json() : []),
+    fetch('/api/popular').then(r => r.ok ? r.json() : []),
+  ]);
+  const latest  = latestRes.status  === 'fulfilled' ? (latestRes.value  || []) : [];
+  const popular = popularRes.status === 'fulfilled' ? (popularRes.value || []) : [];
+  if (latest.length) initHero(latest);
+  else {
+    const skel = document.getElementById('hero-skel');
+    if (skel) { skel.style.animation = 'none'; skel.innerHTML = '<div style="width:100%;text-align:center;color:var(--text-muted);font-size:13px;padding:20px">Failed to load — <button onclick="loadAll()" style="color:var(--primary);font-weight:600;background:none;border:none;cursor:pointer;font-size:13px">Retry</button></div>'; }
+  }
+  renderLatestGrid(latest);
+  renderPopular(popular.length ? popular : latest);
+}
+
+loadAll();
+</script>
+</body>
+</html>

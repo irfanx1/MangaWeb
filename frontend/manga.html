@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Manga — PornhwaFlix</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<nav class="nav" id="main-nav">
+  <button class="nav-btn" id="nav-back" title="Back"></button>
+  <a href="/" class="nav-btn" id="nav-home" title="Home"></a>
+  <span class="nav-logo" style="text-align:center;flex:1;font-size:13px;letter-spacing:0.02em" id="nav-title">Loading…</span>
+  <button class="nav-btn" id="lib-btn" title="Save to Library"></button>
+</nav>
+
+<!-- Full-page loading overlay -->
+<div class="page-loading-overlay" id="page-overlay">
+  <div class="page-loading-inner">
+    <div class="pfx-loader">
+      <div class="pfx-loader-ring"></div>
+      <div class="pfx-loader-ring pfx-loader-ring--2"></div>
+      <div class="pfx-loader-dot"></div>
+    </div>
+    <p class="pfx-loader-label" id="overlay-label">Loading manga…</p>
+  </div>
+</div>
+
+<div class="page" id="app" style="opacity:0;transition:opacity 0.3s ease">
+
+  <!-- Hero skeleton -->
+  <div class="manga-hero" id="manga-hero">
+    <div class="manga-hero-bg" id="hero-bg"></div>
+    <div class="manga-cover-wrap" id="cover-wrap">
+      <div class="skel" style="aspect-ratio:2/3;width:116px;border-radius:12px"></div>
+    </div>
+    <div class="manga-info" id="manga-info">
+      <div class="skel skel-line" style="width:90%;height:20px;margin-bottom:10px"></div>
+      <div class="skel skel-line" style="width:55%;height:12px;margin-bottom:6px"></div>
+      <div class="skel skel-line" style="width:75%;height:12px"></div>
+    </div>
+  </div>
+
+  <!-- Chapters skeleton -->
+  <div class="chapters-section" id="chapters-section">
+    <div class="chapters-header">
+      <span class="chapters-title">Chapters</span>
+      <span class="chapters-count" id="chapters-count">Loading…</span>
+    </div>
+    <div id="chapter-list">
+      <div class="chapter-item" style="pointer-events:none">
+        <div class="skel" style="width:32px;height:14px;border-radius:4px"></div>
+        <div style="flex:1"><div class="skel skel-line" style="width:70%"></div><div class="skel skel-line" style="width:35%;margin-top:5px"></div></div>
+      </div>
+      <div class="chapter-item" style="pointer-events:none">
+        <div class="skel" style="width:32px;height:14px;border-radius:4px"></div>
+        <div style="flex:1"><div class="skel skel-line" style="width:60%"></div><div class="skel skel-line" style="width:40%;margin-top:5px"></div></div>
+      </div>
+      <div class="chapter-item" style="pointer-events:none">
+        <div class="skel" style="width:32px;height:14px;border-radius:4px"></div>
+        <div style="flex:1"><div class="skel skel-line" style="width:75%"></div><div class="skel skel-line" style="width:30%;margin-top:5px"></div></div>
+      </div>
+      <div class="chapter-item" style="pointer-events:none">
+        <div class="skel" style="width:32px;height:14px;border-radius:4px"></div>
+        <div style="flex:1"><div class="skel skel-line" style="width:65%"></div><div class="skel skel-line" style="width:45%;margin-top:5px"></div></div>
+      </div>
+      <div class="chapter-item" style="pointer-events:none">
+        <div class="skel" style="width:32px;height:14px;border-radius:4px"></div>
+        <div style="flex:1"><div class="skel skel-line" style="width:80%"></div><div class="skel skel-line" style="width:35%;margin-top:5px"></div></div>
+      </div>
+      <div class="chapter-item" style="pointer-events:none">
+        <div class="skel" style="width:32px;height:14px;border-radius:4px"></div>
+        <div style="flex:1"><div class="skel skel-line" style="width:55%"></div><div class="skel skel-line" style="width:40%;margin-top:5px"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/static/app.js"></script>
+<script>
+document.getElementById('nav-back').innerHTML = ICONS.back;
+document.getElementById('nav-home').innerHTML  = ICONS.home;
+document.getElementById('lib-btn').innerHTML  = ICONS.heart;
+document.getElementById('nav-back').addEventListener('click', () => history.back());
+
+if (TG) { TG.BackButton.show(); TG.BackButton.onClick(() => history.back()); }
+
+const mangaUrl   = Nav.param('url');
+const mangaTitle = Nav.param('title') || '';
+const mangaCover = Nav.param('cover') || '';
+if (mangaTitle) document.getElementById('nav-title').textContent = mangaTitle;
+
+let chapters = [], mangaData = {};
+
+function setOverlay(visible, label) {
+  const el = document.getElementById('page-overlay');
+  if (label) document.getElementById('overlay-label').textContent = label;
+  el.classList.toggle('visible', visible);
+  document.getElementById('app').style.opacity = visible ? '0' : '1';
+}
+
+function updateLibBtn() {
+  const btn = document.getElementById('lib-btn');
+  const inLib = Store.isInLibrary(mangaUrl);
+  btn.innerHTML = inLib ? ICONS.heartFill : ICONS.heart;
+  btn.classList.toggle('nav-btn--active', inLib);
+}
+
+document.getElementById('lib-btn').addEventListener('click', () => {
+  if (Store.isInLibrary(mangaUrl)) {
+    Store.removeFromLibrary(mangaUrl);
+    showToast('Removed from library');
+  } else {
+    Store.addToLibrary({
+    url: mangaUrl,
+    title: mangaData.title || mangaTitle,
+    cover: mangaData.cover || mangaCover || '',
+    latest_chapter: chapters[0]?.title || '',
+    source: mangaData.source || Nav.param('source') || ''
+    });
+    showToast('Added to library ♥', 'success');
+  }
+  updateLibBtn();
+});
+updateLibBtn();
+
+function renderHero(data) {
+  document.getElementById('nav-title').textContent = data.title;
+  const coverProxy = `/api/image?url=${encodeURIComponent(data.cover)}`;
+  document.getElementById('hero-bg').innerHTML = `<img src="${coverProxy}" alt="" aria-hidden="true" loading="lazy" onerror="this.style.display='none'">`;
+  document.getElementById('cover-wrap').innerHTML = `<img src="${coverProxy}" alt="${escHtml(data.title)}" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 300%22><rect width=%22200%22 height=%22300%22 fill=%22%23111%22/></svg>'">`;
+  document.getElementById('manga-info').innerHTML = `
+    <h1 class="manga-info-title">${escHtml(data.title)}</h1>
+    <div class="manga-info-tags">
+      <span class="manga-tag">Manhwa</span>
+      ${data.source === 'manga18fx'  ? '<span class="manga-tag manga-tag--src">18FX</span>' : ''}
+      ${data.source === 'asurascans' ? '<span class="manga-tag manga-tag--src manga-tag--as">AsuraScans</span>' : ''}
+      ${chapters.length ? `<span class="manga-tag">${chapters.length} ch</span>` : ''}
+    </div>
+    <p class="manga-info-desc">${escHtml(data.description || 'No description available.')}</p>
+  `;
+}
+
+function renderChapters(chs) {
+  const list  = document.getElementById('chapter-list');
+  const count = document.getElementById('chapters-count');
+  count.textContent = `${chs.length} chapters`;
+  list.innerHTML = '';
+  if (!chs.length) {
+    list.innerHTML = `<p style="padding:20px 0;color:var(--text-muted);font-size:13px">No chapters found.</p>`;
+    return;
+  }
+  const readSet = Store.getReadChapters(mangaUrl);
+  chs.forEach((ch, idx) => {
+    const isRead = readSet.has(ch.url);
+    const div = document.createElement('div');
+    div.className = 'chapter-item' + (isRead ? ' read' : '');
+    div.innerHTML = `
+      <span class="chapter-num">${escHtml(String(ch.number || idx + 1))}</span>
+      <div class="chapter-text">
+        <div class="chapter-name">${escHtml(ch.title)}</div>
+        ${ch.date ? `<div class="chapter-date">${escHtml(ch.date)}</div>` : ''}
+      </div>
+      <span class="chapter-read-icon">${ICONS.check}</span>
+    `;
+    div.addEventListener('click', () => Nav.go('/reader', { url: ch.url, manga: mangaUrl, title: mangaData.title || mangaTitle, cover: mangaData.cover || mangaCover, chidx: idx, source: mangaData.source || '' }));
+    list.appendChild(div);
+  });
+}
+
+async function load() {
+  setOverlay(true, 'Loading manga…');
+  if (!mangaUrl) {
+    setOverlay(false);
+    document.getElementById('app').innerHTML = `<div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><h3>Invalid URL</h3></div>`;
+    return;
+  }
+  try {
+    const source = Nav.param('source') || '';
+    const endpoint = source === 'manga18fx'   ? '/api/manga18fx'
+                   : source === 'asurascans'  ? '/api/mangaAsura'
+                   : '/api/manga18fx';
+    const r = await fetch(`${endpoint}?url=${encodeURIComponent(mangaUrl)}`);
+    if (!r.ok) throw new Error('Failed');
+    const data = await r.json();
+    mangaData  = data;
+    chapters   = data.chapters || [];
+    renderHero(data);
+    renderChapters(chapters);
+    updateLibBtn();
+    setOverlay(false);
+  } catch(e) {
+    setOverlay(false);
+    document.getElementById('manga-info').innerHTML = `<p style="color:var(--text-muted);font-size:13px;padding-top:8px">Failed to load. Check your connection.</p>`;
+    document.getElementById('chapter-list').innerHTML = '';
+    document.getElementById('chapters-count').textContent = '–';
+  }
+}
+load();
+</script>
+</body>
+</html>

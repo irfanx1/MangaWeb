@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Search — Manhwaflix</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nav-btn" id="nav-back" title="Back"></button>
+  <span class="nav-logo" style="text-align:center;flex:1;font-size:15px;letter-spacing:.05em">Search</span>
+  <a href="/library" class="nav-btn" id="nav-lib" title="Library"></a>
+</nav>
+
+<div class="page">
+
+  <div class="search-sticky">
+    <div class="search-box">
+      <span class="search-icon" id="search-icon-el"></span>
+      <input class="search-input" type="search" id="search-input"
+        placeholder="Search manhwa, manga, webtoon…" autofocus autocomplete="off" spellcheck="false">
+      <button class="search-clear" id="search-clear" aria-label="Clear">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Source filter tabs -->
+    <div class="search-tabs" id="search-tabs">
+      <button class="search-tab active" data-src="all">All Sources</button>
+      <button class="search-tab" data-src="manga18fx">Manga18FX</button>
+      <button class="search-tab search-tab--as" data-src="asurascans">AsuraScans</button>
+    </div>
+  </div>
+
+  <p class="results-meta" id="results-meta"></p>
+  <div class="cards-grid" id="results-grid" style="padding-bottom:40px"></div>
+
+  <div class="page-loader hidden" id="loading-state">
+    <div class="pfx-loader pfx-loader--sm">
+      <div class="pfx-loader-ring"></div>
+      <div class="pfx-loader-ring pfx-loader-ring--2"></div>
+      <div class="pfx-loader-dot"></div>
+    </div>
+    <span style="margin-top:10px;font-size:12px;color:var(--text-muted);font-family:var(--font-display);letter-spacing:.06em;text-transform:uppercase">Searching…</span>
+  </div>
+
+  <div class="empty-state hidden" id="empty-state">
+    <div class="empty-state-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+    </div>
+    <h3>No results found</h3>
+    <p id="empty-msg">Try different keywords or switch the source filter.</p>
+  </div>
+
+  <div class="empty-state" id="initial-state">
+    <div class="empty-state-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+    </div>
+    <h3>Find your manhwa</h3>
+    <p>Results from Manga18FX &amp; AsuraScans</p>
+  </div>
+
+</div>
+
+<script src="/static/app.js"></script>
+<script>
+document.getElementById('nav-back').innerHTML       = ICONS.back;
+document.getElementById('nav-lib').innerHTML        = ICONS.lib;
+document.getElementById('search-icon-el').innerHTML = ICONS.search;
+document.getElementById('nav-back').addEventListener('click', () => history.back());
+if (TG) { TG.BackButton.show(); TG.BackButton.onClick(() => history.back()); }
+
+const input      = document.getElementById('search-input');
+const grid       = document.getElementById('results-grid');
+const meta       = document.getElementById('results-meta');
+const emptyState = document.getElementById('empty-state');
+const emptyMsg   = document.getElementById('empty-msg');
+const initState  = document.getElementById('initial-state');
+const loadState  = document.getElementById('loading-state');
+const clearBtn   = document.getElementById('search-clear');
+const tabsEl     = document.getElementById('search-tabs');
+
+let timer     = null;
+let lastQuery = '';
+let activeSrc = 'all';   // 'all' | 'manga18fx' | 'asurascans'
+
+// All fetched results (both sources), keyed for filtering
+let _results18fx  = [];
+let _resultsAsura = [];
+
+// ── State helpers ──────────────────────────────
+function setState(state) {
+  grid.classList.toggle('hidden',       state !== 'results');
+  emptyState.classList.toggle('hidden', state !== 'empty');
+  initState.classList.toggle('hidden',  state !== 'initial');
+  loadState.classList.toggle('hidden',  state !== 'loading');
+}
+
+function updateMeta(count, q, srcLabel) {
+  meta.innerHTML = count
+    ? `<strong>${count}</strong> result${count !== 1 ? 's' : ''} for "<em>${escHtml(q)}</em>"${srcLabel ? ` <span style="color:var(--text-muted);font-weight:400">· ${escHtml(srcLabel)}</span>` : ''}`
+    : '';
+}
+
+// ── Source tabs ────────────────────────────────
+tabsEl.querySelectorAll('.search-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabsEl.querySelectorAll('.search-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    activeSrc = tab.dataset.src;
+    applyFilter();
+  });
+});
+
+function applyFilter() {
+  let visible = [];
+  if (activeSrc === 'all')         visible = interleave(_results18fx, _resultsAsura);
+  else if (activeSrc === 'manga18fx')  visible = _results18fx;
+  else if (activeSrc === 'asurascans') visible = _resultsAsura;
+
+  if (!visible.length) {
+    if (!lastQuery.trim()) { setState('initial'); meta.textContent = ''; return; }
+    const srcName = activeSrc === 'all' ? 'any source' : (activeSrc === 'manga18fx' ? 'Manga18FX' : 'AsuraScans');
+    emptyMsg.textContent = `No results on ${srcName}. Try switching the source filter.`;
+    setState('empty');
+    meta.textContent = '';
+    return;
+  }
+
+  setState('results');
+  grid.innerHTML = '';
+  visible.forEach(m => {
+    const card = renderCard(m, () =>
+      Nav.go('/manga', { url: m.url, title: m.title, cover: m.cover, source: m.source })
+    );
+    grid.appendChild(card);
+  });
+  setTimeout(() => staggerCards(grid), 10);
+
+  const srcLabel = activeSrc === 'all' ? null
+    : activeSrc === 'manga18fx' ? 'Manga18FX'
+    : 'AsuraScans';
+  updateMeta(visible.length, lastQuery, srcLabel);
+}
+
+function interleave(a, b) {
+  const out = [];
+  const max = Math.max(a.length, b.length);
+  for (let i = 0; i < max; i++) {
+    if (a[i]) out.push(a[i]);
+    if (b[i]) out.push(b[i]);
+  }
+  return out;
+}
+
+// ── Main search ────────────────────────────────
+async function doSearch(q) {
+  if (!q.trim()) { _results18fx = []; _resultsAsura = []; setState('initial'); meta.textContent = ''; return; }
+  if (q === lastQuery) { applyFilter(); return; }
+  lastQuery = q;
+
+  _results18fx = []; _resultsAsura = [];
+  grid.innerHTML = ''; meta.textContent = '';
+  setState('loading');
+
+  const enc = encodeURIComponent(q);
+  const [r18, rAs] = await Promise.allSettled([
+    fetch(`/api/search18fx?q=${enc}`).then(r => r.ok ? r.json() : []).catch(() => []),
+    fetch(`/api/searchAsura?q=${enc}`).then(r => r.ok ? r.json() : []).catch(() => []),
+  ]);
+
+  _results18fx  = r18.status === 'fulfilled' ? (r18.value  || []) : [];
+  _resultsAsura = rAs.status === 'fulfilled' ? (rAs.value  || []) : [];
+
+  if (!_results18fx.length && !_resultsAsura.length) {
+    emptyMsg.textContent = 'No results found. Try different keywords.';
+    setState('empty'); meta.textContent = ''; return;
+  }
+
+  // Show error toasts for partial failures
+  if (r18.status === 'rejected' || !_results18fx.length && r18.status === 'fulfilled' && rAs.status === 'fulfilled' && _resultsAsura.length) {
+    // silently fine — one source just had no results
+  }
+  if (r18.status === 'rejected')
+    showToast('Manga18FX search failed', 'error');
+  if (rAs.status === 'rejected')
+    showToast('AsuraScans search failed', 'error');
+
+  applyFilter();
+}
+
+// ── Input events ────────────────────────────────
+input.addEventListener('input', () => {
+  const q = input.value;
+  clearBtn.classList.toggle('visible', q.length > 0);
+  clearTimeout(timer);
+  // Reset lastQuery so filter re-runs fresh on new input
+  lastQuery = '';
+  timer = setTimeout(() => doSearch(q.trim()), 380);
+});
+
+clearBtn.addEventListener('click', () => {
+  input.value = ''; clearBtn.classList.remove('visible');
+  lastQuery = ''; _results18fx = []; _resultsAsura = [];
+  setState('initial'); meta.textContent = ''; grid.innerHTML = '';
+  input.focus();
+});
+
+// ── Pre-fill from URL ───────────────────────────
+const q0 = Nav.param('q');
+if (q0) {
+  input.value = q0;
+  clearBtn.classList.add('visible');
+  doSearch(q0);
+} else {
+  setState('initial');
+}
+</script>
+</body>
+</html>

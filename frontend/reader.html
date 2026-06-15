@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Reader — PornhwaFlix</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="reader-page">
+
+<!-- Top nav -->
+<header class="reader-nav" id="reader-nav">
+  <button class="reader-back" id="nav-back"></button>
+  <a href="/" class="reader-back" id="nav-home" title="Home"></a>
+  <div class="reader-nav-title">
+    <div class="reader-manga-name" id="rdr-manga"></div>
+    <div class="reader-chapter-name" id="rdr-chapter">Loading…</div>
+  </div>
+  <select class="reader-ch-select" id="ch-select" aria-label="Chapter"></select>
+</header>
+
+<!-- Progress bar -->
+<div class="scroll-bar"><div class="scroll-bar-fill" id="scroll-fill"></div></div>
+
+<!-- Full-page loading overlay -->
+<div class="page-loading-overlay visible" id="page-overlay">
+  <div class="page-loading-inner">
+    <div class="pfx-loader">
+      <div class="pfx-loader-ring"></div>
+      <div class="pfx-loader-ring pfx-loader-ring--2"></div>
+      <div class="pfx-loader-dot"></div>
+    </div>
+    <p class="pfx-loader-label" id="overlay-label">Loading chapter…</p>
+    <div class="pfx-loader-steps" id="loader-steps">
+      <span class="loader-step active" id="step-fetch">Fetching pages</span>
+      <span class="loader-step" id="step-render">Rendering images</span>
+    </div>
+  </div>
+</div>
+
+<!-- Images -->
+<main class="reader-body" id="reader-body" style="opacity:0;transition:opacity 0.35s ease">
+  <div class="reader-images" id="reader-images"></div>
+
+  <div class="reader-footer" id="reader-footer" style="display:none">
+    <div class="reader-footer-label">Chapter Complete</div>
+    <div id="footer-next"></div>
+    <br>
+    <a href="#" id="back-to-chapters" style="font-size:13px;color:var(--text-muted);margin-top:8px;display:inline-block">
+      &larr; Back to chapters
+    </a>
+  </div>
+  <div class="reader-spacer"></div>
+</main>
+
+<div class="page-pill" id="page-pill">– / –</div>
+<button class="btt" id="btt" title="Back to top"></button>
+
+<div class="reader-controls" id="reader-controls">
+  <button class="ctrl-btn" id="ctrl-prev"></button>
+  <button class="ctrl-btn primary" id="ctrl-chapters" title="Chapters">&#9776;</button>
+  <button class="ctrl-btn" id="ctrl-next"></button>
+</div>
+
+<script src="/static/app.js"></script>
+<script>
+const chapterUrl = Nav.param('url');
+const mangaUrl   = Nav.param('manga');
+const mangaTitle = Nav.param('title') || 'Manga';
+const mangaCover = Nav.param('cover') || '';
+const mangaSrc   = Nav.param('source') || '';
+let   chapterIdx = parseInt(Nav.param('chidx') || '0', 10);
+let   allChapters = [], images = [];
+
+const readerImages = document.getElementById('reader-images');
+const scrollFill   = document.getElementById('scroll-fill');
+const pagePill     = document.getElementById('page-pill');
+const btt          = document.getElementById('btt');
+const readerNav    = document.getElementById('reader-nav');
+const readerCtrls  = document.getElementById('reader-controls');
+const chSelect     = document.getElementById('ch-select');
+const rdrManga     = document.getElementById('rdr-manga');
+const rdrChapter   = document.getElementById('rdr-chapter');
+const readerBody   = document.getElementById('reader-body');
+
+document.getElementById('nav-back').innerHTML = ICONS.back;
+document.getElementById('nav-home').innerHTML = ICONS.home;
+document.getElementById('ctrl-prev').innerHTML = `${ICONS.prev}<span>Prev</span>`;
+document.getElementById('ctrl-next').innerHTML = `<span>Next</span>${ICONS.next}`;
+btt.innerHTML = ICONS.up;
+rdrManga.textContent = mangaTitle;
+
+if (TG) { TG.BackButton.show(); TG.BackButton.onClick(goBack); }
+
+function setStep(id) {
+  document.querySelectorAll('.loader-step').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function setOverlay(visible) {
+  document.getElementById('page-overlay').classList.toggle('visible', visible);
+  readerBody.style.opacity = visible ? '0' : '1';
+}
+
+function goBack() { Nav.go('/manga', { url: mangaUrl, title: mangaTitle, cover: mangaCover, source: mangaSrc }); }
+document.getElementById('nav-back').addEventListener('click', goBack);
+document.getElementById('back-to-chapters').addEventListener('click', e => { e.preventDefault(); goBack(); });
+
+let lastScrollY = 0;
+function handleUIVisibility(y) {
+  const delta = y - lastScrollY;
+  if (delta > 8 && y > 140) { readerNav.classList.add('hidden'); readerCtrls.classList.add('hidden'); }
+  else if (delta < -8)       { readerNav.classList.remove('hidden'); readerCtrls.classList.remove('hidden'); }
+  lastScrollY = y;
+}
+
+window.addEventListener('scroll', () => {
+  const y    = window.scrollY;
+  const docH = document.documentElement.scrollHeight - window.innerHeight;
+  const pct  = docH > 0 ? (y / docH) * 100 : 0;
+  scrollFill.style.width = pct.toFixed(1) + '%';
+  if (images.length) {
+    const imgs = readerImages.querySelectorAll('img');
+    let cur = 1;
+    for (let i = imgs.length - 1; i >= 0; i--) {
+      if (imgs[i].getBoundingClientRect().top <= window.innerHeight * 0.6) {
+        cur = i + 1;
+        break;
+      }
+    }
+    pagePill.textContent = `${cur} / ${images.length}`;
+    Store.saveProgress(mangaUrl, mangaTitle, mangaCover, chapterUrl, rdrChapter.textContent, cur, Math.round(pct));
+  }
+  btt.classList.toggle('visible', y > 500);
+  handleUIVisibility(y);
+}, { passive: true });
+
+btt.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+function goToChapter(url, idx) { Nav.go('/reader', { url, manga: mangaUrl, title: mangaTitle, cover: mangaCover, chidx: idx, source: mangaSrc }); }
+
+document.getElementById('ctrl-prev').addEventListener('click', () => {
+  const prev = allChapters[chapterIdx + 1];
+  prev ? goToChapter(prev.url, chapterIdx + 1) : showToast('No previous chapter');
+});
+document.getElementById('ctrl-next').addEventListener('click', () => {
+  const next = allChapters[chapterIdx - 1];
+  next ? goToChapter(next.url, chapterIdx - 1) : showToast('Latest chapter reached');
+});
+document.getElementById('ctrl-chapters').addEventListener('click', goBack);
+
+chSelect.addEventListener('change', () => {
+  const idx = parseInt(chSelect.value, 10);
+  goToChapter(allChapters[idx].url, idx);
+});
+
+function syncNavButtons() {
+  document.getElementById('ctrl-prev').disabled = chapterIdx >= allChapters.length - 1;
+  document.getElementById('ctrl-next').disabled = chapterIdx <= 0;
+}
+
+function renderImages(imgs) {
+
+  readerImages.innerHTML = '';
+
+  if (!imgs.length) return;
+
+  const imgEls = imgs.map((url, i) => {
+
+    const el = document.createElement('img');
+
+    el.alt = `Page ${i + 1}`;
+
+    el.referrerPolicy = 'no-referrer';
+
+    el.decoding = 'async';
+
+    el.loading = 'eager';
+
+    el.style.minHeight = '400px';
+
+    el.style.background = '#0d0d0d';
+
+    el.style.opacity = '0';
+
+    el.style.transition = 'opacity 0.25s ease';
+
+    el.dataset.retry = '0';
+
+    el.onerror = () => {
+
+      const retries =
+        parseInt(el.dataset.retry || '0');
+
+      if (retries < 3) {
+
+        el.dataset.retry =
+          String(retries + 1);
+
+        setTimeout(() => {
+
+          el.src =
+            `/api/image?url=${encodeURIComponent(url)}&r=${Date.now()}`;
+
+        }, 1000 * (retries + 1));
+
+        return;
+      }
+
+      el.style.minHeight = '60px';
+
+      el.style.background = '#111';
+
+      el.style.opacity = '0.25';
+    };
+
+    el.onload = () => {
+
+      el.style.minHeight = '';
+
+      el.style.background = '';
+
+      el.style.opacity = '1';
+    };
+
+    readerImages.appendChild(el);
+
+    return el;
+  });
+
+  imgs.slice(0, 5).forEach(url => {
+    const preload = new Image();
+    preload.src = `/api/image?url=${encodeURIComponent(url)}`;
+  });
+
+  pagePill.textContent =
+    `1 / ${imgs.length}`;
+
+  requestAnimationFrame(() => {
+
+    imgEls.forEach((el, i) => {
+
+      el.src =
+        `/api/image?url=${encodeURIComponent(imgs[i])}`;
+
+    });
+
+  });
+}
+
+function populateSelect(chs) {
+  chSelect.innerHTML = '';
+  chs.forEach((ch, i) => {
+    const opt = document.createElement('option');
+    opt.value = i; opt.textContent = ch.title;
+    if (i === chapterIdx) opt.selected = true;
+    chSelect.appendChild(opt);
+  });
+}
+
+function renderFooter() {
+  const footer   = document.getElementById('reader-footer');
+  const nextWrap = document.getElementById('footer-next');
+  footer.style.display = 'block';
+  const next = allChapters[chapterIdx - 1];
+  if (next) {
+    const btn = document.createElement('button');
+    btn.className = 'reader-next-btn';
+    btn.innerHTML = `${ICONS.next} Next: ${escHtml(next.title)}`;
+    btn.addEventListener('click', () => goToChapter(next.url, chapterIdx - 1));
+    nextWrap.innerHTML = '';
+    nextWrap.appendChild(btn);
+  } else {
+    nextWrap.innerHTML = `<p style="color:var(--text-muted);font-size:13px">You've reached the latest chapter.</p>`;
+  }
+}
+
+async function loadAll() {
+  if (!chapterUrl) { setOverlay(false); readerImages.innerHTML = `<p style="padding:40px;text-align:center;color:var(--text-muted)">No chapter URL provided.<br><br><button onclick="location.reload()">Retry</button></p>`; return; }
+
+  try {
+    setStep('step-fetch');
+    const endpoint = mangaSrc === 'manga18fx'  ? '/api/chapter18fx'
+                   : mangaSrc === 'asurascans' ? '/api/chapterAsura'
+                   : '/api/chapter18fx';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      30000
+    );
+    let data;
+    try {
+      data = await fetch(
+        `${endpoint}?url=${encodeURIComponent(chapterUrl)}`,
+        {
+          signal: controller.signal
+        }
+      ).then(r => {
+        if (!r.ok)
+          throw new Error('Failed to fetch chapter data');
+        return r.json();
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    rdrChapter.textContent = data.title || 'Chapter';
+    document.title = `${data.title || 'Reader'} — PornhwaFlix`;
+    images = data.images || [];
+
+    setStep('step-render');
+    if (!images.length) {
+      readerImages.innerHTML = `<p style="padding:40px;text-align:center;color:var(--text-muted)">No images found.<br><br><button onclick="location.reload()">Retry</button></p>`;
+    } else {
+      renderImages(images);
+    }
+    setOverlay(false);
+  } catch(e) {
+    setOverlay(false);
+    readerImages.innerHTML = `<p style="padding:40px;text-align:center;color:var(--text-muted)">Failed to load chapter.<br><br><button onclick="location.reload()">Retry</button></p>`;
+  }
+
+  // Load chapter list (non-blocking)
+  if (mangaUrl) {
+    try {
+      const mEndpoint = mangaSrc === 'manga18fx'  ? '/api/manga18fx'
+                       : mangaSrc === 'asurascans' ? '/api/mangaAsura'
+                       : '/api/manga18fx';
+      const manga = await fetch(`${mEndpoint}?url=${encodeURIComponent(mangaUrl)}`).then(r => r.json());
+      allChapters = manga.chapters || [];
+      populateSelect(allChapters);
+      syncNavButtons();
+      renderFooter();
+    } catch(e) { syncNavButtons(); }
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>
